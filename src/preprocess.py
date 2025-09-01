@@ -2,7 +2,11 @@ from pathlib import Path
 import re
 from typing import Optional, List, Iterable, Sequence, Set, Dict
 
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+
 import pandas as pd
+import numpy as np
 from wordcloud import WordCloud, STOPWORDS
 import matplotlib.pyplot as plt
 
@@ -103,6 +107,7 @@ def basic_clean(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
+# Textos de Overview são normalizados
 def _normalize_text(s: str) -> str:
     if not isinstance(s, str):
         return ""
@@ -112,6 +117,7 @@ def _normalize_text(s: str) -> str:
     s = re.sub(r"\s+", " ", s).strip()
     return s
 
+# Identifica as stopwords
 def _build_stopwords(extra: Optional[Iterable[str]] = None) -> Set[str]:
     sw = set(STOPWORDS)
 
@@ -124,6 +130,7 @@ def _build_stopwords(extra: Optional[Iterable[str]] = None) -> Set[str]:
         sw.update({e.lower() for e in extra})
     return sw
 
+# Gera nuvem de palavras considerando todas as categorias
 def generate_wordcloud_from_series(text_series, outfile: Path | str, width: int = 1600, height: int = 900, max_words: int = 300, background_color: str = "white", extra_stopwords: Optional[Iterable[str]] = None) -> Path:
     sw = _build_stopwords(extra_stopwords)
 
@@ -150,6 +157,7 @@ def generate_wordcloud_from_series(text_series, outfile: Path | str, width: int 
     plt.close()
     return outfile
 
+# Gera nuvem de palavras considerando cada categoria
 def generate_wordclouds_by_category(df: pd.DataFrame, text_col: str = "Overview", cat_col: str = "Genre", top_k: int = 5, min_docs: int = 10, extra_stopwords: Optional[Iterable[str]] = None) -> Dict[str, Path]:
 
     vc = df[cat_col].value_counts()
@@ -170,3 +178,31 @@ def generate_wordclouds_by_category(df: pd.DataFrame, text_col: str = "Overview"
         except ValueError:
             continue
     return outputs
+
+# Log-transformação de Gross e No_of_votes
+def add_log_transforms(df: pd.DataFrame) -> pd.DataFrame:
+    if "No_of_Votes" in df.columns:
+        df["No_of_Votes_log"] = np.log1p(df["No_of_Votes"])
+    if "Gross" in df.columns:
+        df["Gross_log"] = np.log1p(df["Gross"])
+
+    return df
+
+# Construção do pré-processamento
+def build_preprocessor(df: pd.DataFrame):
+    numeric_cols = [c for c in [
+        "Runtime", "Meta_score", "Released_Year",
+        "No_of_Votes_log", "Gross_log"
+    ] if c in df.columns]
+
+    categorical_cols = [c for c in ["Genre", "Certificate"] if c in df.columns]
+
+    preprocessor = ColumnTransformer(
+        transformers=[
+            ("num", StandardScaler(), numeric_cols),
+            ("cat", OneHotEncoder(handle_unknown="ignore", sparse_output=False), categorical_cols),
+        ],
+        remainder="drop",
+        verbose_feature_names_out=False
+    )
+    return preprocessor, numeric_cols, categorical_cols
