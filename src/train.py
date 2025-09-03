@@ -17,7 +17,6 @@ MODELS_DIR = ROOT / "models"
 MODELS_DIR.mkdir(exist_ok=True)
 
 def train_and_eval(df: pd.DataFrame, model_name: str = "rf") -> dict:
-    # Refaz os processos de limpeza e transformação, caso necessário
     df = basic_clean(df)
     df = add_log_transforms(df)
 
